@@ -1,2 +1,4 @@
 __pycache__
 *.cpython
+bsp_temp/__pycache__
+./bsp_temp/__pycache__
