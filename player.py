@@ -26,15 +26,16 @@ class Player:
 
         inc = vec2(0)
         if key_state[pg.K_a]:
-            inc += vec2(0, speed).rotate(self.angle)
+            inc += vec2(0, speed)
         if key_state[pg.K_d]:
-            inc += vec2(0, -speed).rotate(self.angle)
+            inc += vec2(0, -speed)
         if key_state[pg.K_w]:
-            inc += vec2(speed, 0).rotate(self.angle)
+            inc += vec2(speed, 0)
         if key_state[pg.K_s]:
-            inc += vec2(-speed, 0).rotate(self.angle)
+            inc += vec2(-speed, 0)
         
         if inc.x and inc.y:
             inc *= self.DIAG_MOVE_CORR
         
+        inc.rotate_ip(self.angle)
         self.pos += inc

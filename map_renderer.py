@@ -14,6 +14,7 @@ class MapRenderer:
         self.vertexes = [pg.math.Vector2(self.remap_x(v.x), self.remap_y(v.y)) for v in self.vertexes]
     
     def draw(self):
+        pass
         self.draw_linedefs()
         self.draw_player_pos()
     
