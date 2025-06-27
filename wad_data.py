@@ -15,8 +15,6 @@ class WADData:
             lump_index=self.map_index + self.LUMP_INDICES['VERTEXES'],
             num_bytes=4  # num bytes per vertex
         )
-        [print(i) for i in self.vertexes]
-
         self.reader.close()
     
     def get_lump_data(self, reader_func, lump_index, num_bytes, header_length=0):
