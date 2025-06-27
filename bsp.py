@@ -16,6 +16,14 @@ class BSP:
     def update(self):
         self.render_bsp_node(node_id=self.root_node_id)
     
+    @staticmethod
+    def angle_to_x(angle):
+        if angle > 0:
+            x = SCREEN_DIST - math.tan(math.radians(angle)) * H_WIDTH
+        else:
+            x = -math.tan(math.radians(angle)) * H_WIDTH + SCREEN_DIST
+        return int(x)
+    
     def add_segment_to_fov(self, vertex1, vertex2):
         angle1 = self.point_to_angle(vertex1)
         angle2 = self.point_to_angle(vertex2)
@@ -24,6 +32,9 @@ class BSP:
         # backface culling
         if span >= 180.0:
             return False
+        
+        # needed for further calculations
+        rw_angle1 = angle1
         
         angle1 -= self.player.angle
         angle2 -= self.player.angle
@@ -41,15 +52,19 @@ class BSP:
                 return False
             # clipping
             angle2 = -H_FOV
-        return True
+        
+        x1 = self.angle_to_x(angle1)
+        x2 = self.angle_to_x(angle2)
+        return x1, x2, rw_angle1
     
     def render_sub_sector(self, sub_sector_id):
         sub_sector = self.sub_sectors[sub_sector_id]
 
         for i in range(sub_sector.seg_count):
             seg = self.segs[sub_sector.first_seg_id + i]
-            if self.add_segment_to_fov(seg.start_vertex, seg.end_vertex):
-                self.engine.map_renderer.draw_seg(seg, sub_sector_id)
+            if result := self.add_segment_to_fov(seg.start_vertex, seg.end_vertex):
+                # self.engine.map_renderer.draw_seg(seg, sub_sector_id)
+                self.engine.map_renderer.draw_vlines(result[0], result[1], sub_sector_id)
     
     @staticmethod
     def norm(angle):
