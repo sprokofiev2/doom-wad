@@ -15,7 +15,7 @@ class DoomEngine:
         self.on_init()
     
     def on_init(self):
-        self.wad_data = WADData(self, map_name='E1M1')
+        self.wad_data = WADData(self, map_name='E1M8')
         self.map_renderer = MapRenderer(self)
     
     def update(self):

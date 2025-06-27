@@ -19,14 +19,19 @@ def insert(node, value):
             node.right = Node(value)
 
 
-def traverse(node):
+def traverse(node, player_pos):
     if node:
-        traverse(node.left)
-        print(node.value, end=' ')
-        traverse(node.right)
+        if player_pos <= node.value:
+            traverse(node.left, player_pos)
+            print(node.value, end=' ')
+            traverse(node.right, player_pos)
+        else:
+            traverse(node.right, player_pos)
+            print(node.value, end=' ')
+            traverse(node.left, player_pos)        
 
 
 if __name__ == '__main__':
     root = Node(0)
     [insert(root, value) for value in [-15, -8, 6, 12, 20]]
-    traverse(root)
+    traverse(root, player_pos=4)
