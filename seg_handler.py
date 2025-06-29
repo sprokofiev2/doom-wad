@@ -17,12 +17,12 @@ class SegHandler:
         self.upper_clip, self.lower_clip = [], []
     
     def update(self):
-        # self.init_floor_ceil_clip_height()
+        self.init_floor_ceil_clip_height()
         self.init_screen_range()
     
-    # def init_floor_ceil_cip_height(self):
-    #     self.upper_clip = [-1 for _ in range(WIDTH)]
-    #     self.lower_clip = [HEIGHT for _ in range(WIDTH)]
+    def init_floor_ceil_clip_height(self):
+        self.upper_clip = [-1 for _ in range(WIDTH)]
+        self.lower_clip = [HEIGHT for _ in range(WIDTH)]
     
     @staticmethod
     def get_x_to_angle_table():
@@ -51,6 +51,8 @@ class SegHandler:
         line = seg.linedef
         side = seg.linedef.front_sidedef
         renderer = self.engine.view_renderer
+        upper_clip = self.upper_clip
+        lower_clip = self.lower_clip
 
         # textures
         wall_texture = seg.linedef.front_sidedef.middle_texture
@@ -94,18 +96,180 @@ class SegHandler:
             draw_wall_y2 = wall_y2
 
             if b_draw_ceil:
-                pass
+                cy1 = upper_clip[x] + 1
+                cy2 = int(min(draw_wall_y1 - 1, lower_clip[x] - 1))
+                renderer.draw_vline(x, cy1, cy2, ceil_texture, light_level)
 
             if b_draw_wall:
-                wy1 = int(draw_wall_y1)
-                wy2 = int(draw_wall_y2)
+                wy1 = int(max(draw_wall_y1, upper_clip[x] + 1))
+                wy2 = int(min(draw_wall_y2, lower_clip[x] - 1))
                 renderer.draw_vline(x, wy1, wy2, wall_texture, light_level)
             
             if b_draw_floor:
-                pass
+                fy1 = int(max(draw_wall_y2 + 1, upper_clip[x] + 1))
+                fy2 = lower_clip[x] - 1
+                renderer.draw_vline(x, fy1, fy2, floor_texture, light_level)
 
             wall_y1 += wall_y1_step
             wall_y2 += wall_y2_step
+    
+    def draw_portal_wall_range(self, x1, x2):
+        # aliases to shorten code
+        seg = self.seg
+        front_sector = seg.front_sector
+        back_sector = seg.back_sector
+        line = seg.linedef
+        side = seg.linedef.front_sidedef
+        renderer = self.engine.view_renderer
+
+        # textures
+        upper_wall_texture = side.upper_texture
+        lower_wall_texture = side.lower_texture
+        tex_ceil_id = front_sector.ceil_texture
+        tex_floor_id = front_sector.floor_texture
+        light_level = front_sector.light_level
+
+        # calculate relative plane heights of front and back sector
+        world_front_z1 = front_sector.ceil_height - self.player.height
+        world_back_z1 = back_sector.ceil_height - self.player.height
+        world_front_z2 = front_sector.floor_height - self.player.height
+        world_back_z2 = back_sector.floor_height - self.player.height
+
+        # check which parts to render
+        if (world_front_z1 != world_back_z1 or front_sector.light_level != back_sector.light_level or front_sector.ceil_texture != back_sector.ceil_texture):
+            b_draw_upper_wall = side.upper_texture != '-' and world_back_z1 < world_front_z1
+            b_draw_ceil = world_front_z1 >= 0
+        else:
+            b_draw_upper_wall = False
+            b_draw_ceil = False
+        
+        if (world_front_z2 != world_back_z2 or front_sector.floor_texture != back_sector.floor_texture or front_sector.light_level != back_sector.light_level):
+            b_draw_lower_wall = side.lower_texture != '-' and world_back_z2 > world_front_z2
+            b_draw_floor = world_front_z2 <= 0
+        else:
+            b_draw_lower_wall = False
+            b_draw_floor = False
+        
+        # skip this seg if nothing to render
+        if (not b_draw_upper_wall and not b_draw_ceil and not b_draw_lower_wall and not b_draw_floor):
+            return None
+        
+        # calculate scaling factors of left/right edges of wall range
+        rw_normal_angle = seg.angle + 90
+        offset_angle = rw_normal_angle - self.rw_angle1
+
+        hypotenuse = math.dist(self.player.pos, seg.start_vertex)
+        rw_distance = hypotenuse * math.cos(math.radians(offset_angle))
+
+        rw_scale = self.scale_from_global_angle(x1, rw_normal_angle, rw_distance)
+        if x2 > x1:
+            scale2 = self.scale_from_global_angle(x2, rw_normal_angle, rw_distance)
+            rw_scale_step = (scale2 - rw_scale) / (x2 - x1)
+        else:
+            rw_scale_step = 0
+        
+        # y positions of top/bottom edges of the wall on screen
+        wall_y1 = H_HEIGHT - world_front_z1 * rw_scale
+        wall_y1_step = -rw_scale_step * world_front_z1
+        wall_y2 = H_HEIGHT - world_front_z2 * rw_scale
+        wall_y2_step = -rw_scale_step * world_front_z2
+        
+        # y position of portal's top edge
+        if b_draw_upper_wall:
+            if world_back_z1 > world_front_z2:
+                portal_y1 = H_HEIGHT - world_back_z1 * rw_scale
+                portal_y1_step = -rw_scale_step * world_back_z1
+            else:
+                portal_y1 = wall_y2
+                portal_y1_step = wall_y2_step
+        
+        if b_draw_lower_wall:
+            if world_back_z2 < world_front_z1:
+                portal_y2 = H_HEIGHT - world_back_z2 * rw_scale
+                portal_y2_step = -rw_scale_step * world_back_z2
+            else:
+                portal_y2 = wall_y1
+                portal_y2_step = wall_y1_step
+        
+        # clipping lists
+        upper_clip = self.upper_clip
+        lower_clip = self.lower_clip
+
+        # perform rendering
+        for x in range(x1, x2 + 1):
+            draw_wall_y1 = wall_y1 - 1
+            draw_wall_y2 = wall_y2
+
+            if b_draw_upper_wall:
+                draw_upper_wall_y1 = wall_y1 - 1
+                draw_upper_wall_y2 = portal_y1
+
+                if b_draw_ceil:
+                    cy1 = upper_clip[x] + 1
+                    cy2 = int(min(draw_wall_y1 - 1, lower_clip[x] - 1))
+                    renderer.draw_vline(x, cy1, cy2, tex_ceil_id, light_level)
+                
+                wy1 = int(max(draw_upper_wall_y1, upper_clip[x] + 1))
+                wy2 = int(min(draw_upper_wall_y2, lower_clip[x] - 1))
+                renderer.draw_vline(x, wy1, wy2, upper_wall_texture, light_level)
+
+                if upper_clip[x] < wy2:
+                    upper_clip[x] = wy2
+                
+                portal_y1 += portal_y1_step
+            
+            if b_draw_ceil:
+                cy1 = upper_clip[x] + 1
+                cy2 = int(min(draw_wall_y1 - 1, lower_clip[x] - 1))
+                renderer.draw_vline(x, cy1, cy2, tex_ceil_id, light_level)
+
+                if upper_clip[x] < cy2:
+                    upper_clip[x] = cy2
+            
+            if b_draw_lower_wall:
+                if b_draw_floor:
+                    fy1 = int(max(draw_wall_y2 + 1, upper_clip[x] + 1))
+                    fy2 = lower_clip[x] - 1
+                    renderer.draw_vline(x, fy1, fy2, tex_floor_id, light_level)
+                
+                draw_lower_wall_y1 = portal_y2 - 1
+                draw_lower_wall_y2 = wall_y2
+
+                wy1 = int(max(draw_lower_wall_y1, upper_clip[x] + 1))
+                wy2 = int(min(draw_lower_wall_y2, lower_clip[x] - 1))
+                renderer.draw_vline(x, wy1, wy2, lower_wall_texture, light_level)
+
+                if lower_clip[x] > wy1:
+                    lower_clip[x] = wy1
+                
+                portal_y2 += portal_y2_step
+            
+            if b_draw_floor:
+                fy1 = int(max(draw_wall_y2 + 1, upper_clip[x] + 1))
+                fy2 = lower_clip[x] - 1
+                renderer.draw_vline(x, fy1, fy2, tex_floor_id, light_level)
+
+                if lower_clip[x] > draw_wall_y2 + 1:
+                    lower_clip[x] = fy1
+            
+            wall_y1 += wall_y1_step
+            wall_y2 += wall_y2_step
+    
+    def clip_portal_walls(self, x_start, x_end):
+        curr_wall = set(range(x_start, x_end))
+
+        if intersection := curr_wall & self.screen_range:
+            if len(intersection) == len(curr_wall):
+                self.draw_portal_wall_range(x_start, x_end - 1)
+            else:
+                arr = sorted(intersection)
+                x = arr[0]
+                for x1, x2 in zip(arr, arr[1:]):
+                    if x2 - x1 > 1:
+                        self.draw_portal_wall_range(x, x1)
+                        x = x2
+                
+                self.draw_portal_wall_range(x, arr[-1])
     
     def clip_solid_walls(self, x_start, x_end):
         if self.screen_range:
@@ -143,3 +307,20 @@ class SegHandler:
         if back_sector is None:
             self.clip_solid_walls(x1, x2)
             return None
+        
+        # wall with window
+        if (front_sector.ceil_height != back_sector.ceil_height or front_sector.floor_height != back_sector.floor_height):
+            self.clip_portal_walls(x1, x2)
+            return None
+        
+        # reject empty lines used for triggers/events
+        # identical floor/ceiling on both sides
+        # identical light levels on both sides
+        # no middle texture
+        if (back_sector.ceil_texture == front_sector.ceil_texture and back_sector.floor_texture == front_sector.floor_texture and
+            back_sector.light_level == front_sector.light_level and 
+            self.seg.linedef.front_sidedef.middle_texture == '-'):
+            return None
+        
+        # borders with different light levels and textures
+        self.clip_portal_walls(x1, x2)
